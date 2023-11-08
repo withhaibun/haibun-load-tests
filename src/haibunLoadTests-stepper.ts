@@ -1,12 +1,16 @@
-import { actionNotOK, actionOK, getFromRuntime, asError, intOrError, getStepperOption } from '@haibun/core/build/lib/util/index.js';
+import { actionNotOK, actionOK, getFromRuntime, asError, intOrError, getStepperOption, findStepperFromOption, stringOrError } from '@haibun/core/build/lib/util/index.js';
 import { TFeaturesBackgrounds, getFeaturesAndBackgrounds } from '@haibun/core/build/phases/collector.js';
 import { IRequest, IResponse, IWebServer, TRequestHandler, WEBSERVER } from '@haibun/web-server-express/build/defs.js';
 import { AStepper, IHasOptions, TNamed, TWorld } from '@haibun/core/build/lib/defs.js';
 import { THistoryWithMeta } from '@haibun/core/build/lib/interfaces/logger.js';
-import { runClient } from './lib/client.js';
+import { StepperClient } from './lib/StepperClient.js';
+import { AStorage } from '@haibun/domain-storage/build/AStorage.js';
 
 const DISPATCH_ROUTE = '/dispatch';
 const RESULTS_ROUTE = '/results';
+
+export const STORAGE = 'STORAGE';
+export const TRACKS_STORAGE = 'TRACKS_STORAGE';
 
 const defaultBase = 'http://localhost:8123';
 
@@ -30,13 +34,43 @@ export type TDispatchedResult = {
 }
 
 const MAX_TOTAL_RUNTIME = 'MAX_TOTAL_RUNTIME';
+const TOKEN = 'TOKEN';
 
 type TRunMap = { [sequence: number]: { testID: string, startTime: number, clientID: string } }
 
 const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper implements IHasOptions {
-    MAX_CLIENT_FAILURES: number = 10;
+    toDelete: { [name: string]: string } = {};
+    totalTests: number = 0;
+    dispatchedTests: number = 0;
+    completedTests: TDispatchedResult[] = [];
+    tests: TFeaturesBackgrounds;
+    maxTotalRuntime = 60 * 2;
+    maxClientTime = 20;
+    maxClientFailures: number = 3;
+    runTime: number = 0;
+    token = randomID();
+    startTime: Date;
+    interval: NodeJS.Timeout;
+    testMap: TRunMap = {};
+    tracksStorage: AStorage;
+    stepperClient: StepperClient;
 
     options = {
+        [STORAGE]: {
+            desc: 'General storage type',
+            parse: (input: string) => stringOrError(input),
+        },
+        [TRACKS_STORAGE]: {
+            required: true,
+            altSource: 'STORAGE',
+            desc: 'Storage type used for histories',
+            parse: (input: string) => stringOrError(input),
+        },
+        [TOKEN]: {
+            required: false,
+            desc: 'Secret token for client auth',
+            parse: (input: string) => stringOrError(input),
+        },
         [MAX_TOTAL_RUNTIME]: {
             required: false,
             desc: 'Maximum total runtime for all tests, in seconds',
@@ -44,18 +78,6 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
 
         }
     }
-    toDelete: { [name: string]: string } = {};
-    totalTests: number = 0;
-    dispatchedTests: number = 0;
-    completedTests: TDispatchedResult[] = [];
-    tests: TFeaturesBackgrounds;
-    maxTime = 60 * 2;
-    maxClientTime = 20;
-    runTime: number = 0;
-    token = randomID();
-    startTime: Date;
-    interval: NodeJS.Timeout;
-    testMap: TRunMap = {};
 
     async close() {
         //
@@ -63,7 +85,10 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
 
     async setWorld(world: TWorld, steppers: AStepper[]) {
         await super.setWorld(world, steppers);
-        this.maxTime = parseInt(getStepperOption(this, MAX_TOTAL_RUNTIME, this.getWorld().extraOptions)) || this.maxTime;
+        this.maxTotalRuntime = parseInt(getStepperOption(this, MAX_TOTAL_RUNTIME, this.getWorld().extraOptions)) || this.maxTotalRuntime;
+        this.token = getStepperOption(this, TOKEN, this.getWorld().extraOptions) || this.token;
+        this.tracksStorage = findStepperFromOption(steppers, this, world.extraOptions, TRACKS_STORAGE, STORAGE);
+        this.stepperClient = new StepperClient(defaultDispatchEndpoint, defaultResultsEndpoint, this.token, this.maxClientFailures, this.getWorld(), this.tracksStorage);
     }
 
     // receive client requests for more work. if all tests are run, tell client to terminate.
@@ -101,6 +126,7 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
             return;
         }
         this.getWorld().logger.log(`results ${historyWithMeta.meta.ok}`);
+        console.log(`results ${JSON.stringify(historyWithMeta, null, 2)}`);
         this.completedTests.push(response);
         res.status(200).end(JSON.stringify({ continue: this.shouldContinue() }));
     }
@@ -121,14 +147,7 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
             //'Start load test client using dispatch endpoint and results endpoint
             gwta: 'start load test client',
             action: async () => {
-                return await runClient({ token: this.token, dispatchEndpoint: defaultDispatchEndpoint, resultsEndpoint: defaultResultsEndpoint, world: this.getWorld(), maxFailures: this.MAX_CLIENT_FAILURES })
-            },
-        },
-        startClientUsing: {
-            //'Start load test client using dispatch endpoint and results endpoint
-            gwta: 'start load test client using {dispatchEndpoint} endpoint and {resultsEndpoint} endpoint',
-            action: async ({ dispatchEndpoint, resultsEndpoint }: TNamed) => {
-                return await runClient({ token: this.token, dispatchEndpoint, resultsEndpoint, world: this.getWorld(), maxFailures: this.MAX_CLIENT_FAILURES });
+                return await this.stepperClient.runClient();
             },
         },
         summarizeResults: {
@@ -162,7 +181,7 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
         return getFeaturesAndBackgrounds([where], [filter]);
     }
     shouldContinue() {
-        return this.completedTests.length < this.totalTests && this.runTime < this.maxTime;
+        return this.completedTests.length < this.totalTests && this.runTime < this.maxTotalRuntime;
     }
     checkToken(token: string, res: IResponse) {
         if (token !== this.token) {
@@ -173,6 +192,5 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
         return true;
     }
 };
-
 
 export default HaibunLoadTestsStepper;
