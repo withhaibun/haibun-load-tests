@@ -1,10 +1,11 @@
-import { actionNotOK, actionOK, getFromRuntime, asError, intOrError, getStepperOption, findStepperFromOption, stringOrError } from '@haibun/core/build/lib/util/index.js';
+import { actionNotOK, actionOK, getFromRuntime, asError, intOrError, getStepperOption, findStepperFromOption, stringOrError, sleep, getConfigFromBase } from '@haibun/core/build/lib/util/index.js';
 import { TFeaturesBackgrounds, getFeaturesAndBackgrounds } from '@haibun/core/build/phases/collector.js';
 import { IRequest, IResponse, IWebServer, TRequestHandler, WEBSERVER } from '@haibun/web-server-express/build/defs.js';
-import { AStepper, IHasOptions, TNamed, TWorld } from '@haibun/core/build/lib/defs.js';
+import { AStepper, IHasOptions, TNamed, TSpecl, TWorld } from '@haibun/core/build/lib/defs.js';
 import { THistoryWithMeta } from '@haibun/core/build/lib/interfaces/logger.js';
-import { StepperClient } from './lib/StepperClient.js';
 import { AStorage } from '@haibun/domain-storage/build/AStorage.js';
+
+import { StepperClient } from './lib/StepperClient.js';
 
 const DISPATCH_ROUTE = '/dispatch';
 const RESULTS_ROUTE = '/results';
@@ -18,12 +19,22 @@ const defaultDispatchEndpoint = `${defaultBase}${DISPATCH_ROUTE}`;
 const defaultResultsEndpoint = `${defaultBase}${RESULTS_ROUTE}`;
 
 const randomID = () => [Math.random().toString(36).substring(2, 15), Math.random().toString(36).substring(2, 15)].join('-');
+export type TTestContext = { tests: TFeaturesBackgrounds, specl: TSpecl };
 
-export type TDispatchedTest = {
-    token: string,
+export type TDispatchedTest = TDispatchedTestPending | TDispatchedTestRunning | TDispatchedTestEnd;
+
+export type TDispatchedTestPending = {
+    state: 'pending'
+}
+type TDispatchedTestRunning = {
     testID?: string,
-    tests: TFeaturesBackgrounds,
+    state: 'running';
+    testContext: TTestContext
     sequence: number
+}
+type TDispatchedTestEnd = {
+    testID?: string,
+    state: 'end';
 }
 
 export type TDispatchedResult = {
@@ -43,14 +54,13 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
     totalTests: number = 0;
     dispatchedTests: number = 0;
     completedTests: TDispatchedResult[] = [];
-    tests: TFeaturesBackgrounds;
+    testContext: TTestContext;
     maxTotalRuntime = 60 * 2;
     maxClientTime = 20;
     maxClientFailures: number = 3;
     runTime: number = 0;
     token = randomID();
     startTime: Date;
-    interval: NodeJS.Timeout;
     testMap: TRunMap = {};
     tracksStorage: AStorage;
     stepperClient: StepperClient;
@@ -88,7 +98,7 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
         this.maxTotalRuntime = parseInt(getStepperOption(this, MAX_TOTAL_RUNTIME, this.getWorld().extraOptions)) || this.maxTotalRuntime;
         this.token = getStepperOption(this, TOKEN, this.getWorld().extraOptions) || this.token;
         this.tracksStorage = findStepperFromOption(steppers, this, world.extraOptions, TRACKS_STORAGE, STORAGE);
-        this.stepperClient = new StepperClient(defaultDispatchEndpoint, defaultResultsEndpoint, this.token, this.maxClientFailures, this.getWorld(), this.tracksStorage);
+        this.stepperClient = new StepperClient(defaultDispatchEndpoint, defaultResultsEndpoint, this.token, this.maxClientFailures, this.getWorld(), this.tracksStorage, steppers);
     }
 
     // receive client requests for more work. if all tests are run, tell client to terminate.
@@ -98,25 +108,36 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
             return;
         }
         const testID = randomID();
+
         if (this.shouldContinue()) {
+            // all tests dispatched, waiting for results
+            if (this.dispatchedTests >= this.totalTests) {
+                res.end(JSON.stringify({ state: 'pending' }));
+                return;
+            }
+
+            // dispatch a test
             const sequence = this.dispatchedTests;
             this.testMap[sequence] = { testID, startTime: new Date().getTime(), clientID: req.ip };
             this.dispatchedTests++;
-            const task: TDispatchedTest = {
-                token,
+            const task: TDispatchedTestRunning = {
+                state: 'running',
                 testID,
                 sequence,
-                tests: this.tests
+                testContext: this.testContext
             };
+            // tests are done
+            console.log('>>', task);
             res.end(JSON.stringify(task));
             return;
         }
-        res.end(JSON.stringify({ token, tests: undefined }));
+        res.end(JSON.stringify({ state: 'end' }));
     }
     // receive results from clients and add to running results
     results: TRequestHandler = async (req: IRequest, res: IResponse) => {
         const response = req.body;
         const { token, sequence, testID, historyWithMeta }: { sequence: number, token: string, testID: string, historyWithMeta: THistoryWithMeta } = req.body;
+        console.log('>>', testID, sequence);
         if (!this.checkToken(token, res)) {
             return;
         }
@@ -125,9 +146,9 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
             res.status(500).end(JSON.stringify({ continue: this.shouldContinue() }));
             return;
         }
-        this.getWorld().logger.log(`results ${historyWithMeta.meta.ok}`);
-        console.log(`results ${JSON.stringify(historyWithMeta, null, 2)}`);
         this.completedTests.push(response);
+        this.getWorld().logger.log(`results ${historyWithMeta.meta.ok}, finished ${this.completedTests.length} of ${this.totalTests} tests}`);
+        console.log(`results ${JSON.stringify(historyWithMeta, null, 2)}`);
         res.status(200).end(JSON.stringify({ continue: this.shouldContinue() }));
     }
     steps = {
@@ -144,7 +165,6 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
             },
         },
         startClient: {
-            //'Start load test client using dispatch endpoint and results endpoint
             gwta: 'start load test client',
             action: async () => {
                 return await this.stepperClient.runClient();
@@ -168,25 +188,41 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
             return actionNotOK('runLoadTests', { error: asError(error) });
         }
         this.totalTests = parseInt(totalTests, 10);
-        this.tests = HaibunLoadTestsStepper.getTests(where, filter);
+        this.testContext = HaibunLoadTestsStepper.getTest(where, filter);
 
         const startTime = new Date();
-        this.interval = setInterval(() => {
+        this.getWorld().logger.info(`started load tests for ${this.totalTests} tests from ${where}`);
+        while (this.shouldContinue()) {
+            await sleep(200);
             this.runTime = (new Date().getTime() - startTime.getTime()) / 1000;
-        }, 500);
+        }
 
         return actionOK();
     }
-    static getTests(where, filter) {
-        return getFeaturesAndBackgrounds([where], [filter]);
+    static getTest(where, filter) {
+        const tests = getFeaturesAndBackgrounds([where], [filter]);
+        const specl = getConfigFromBase([where]);
+        return { specl, tests };
     }
     shouldContinue() {
-        return this.completedTests.length < this.totalTests && this.runTime < this.maxTotalRuntime;
+        const sc = this.completedTests.length < this.totalTests && this.runTime < this.maxTotalRuntime;
+        if (sc) {
+            return sc;
+        }
+        let reason = this.completedTests.length >= this.totalTests ? 'completed tests ' : '';
+
+        if (this.runTime >= this.maxTotalRuntime) {
+            reason += 'run time';
+
+        }
+        this.getWorld().logger.info(`Finished load tests because ${reason}`);
+
+        return false;
     }
     checkToken(token: string, res: IResponse) {
         if (token !== this.token) {
             res.status(403).end(JSON.stringify({ token, tests: undefined }));
-            this.getWorld().logger.error(`token mismatch: ${token} !== ${this.token}`);
+            this.getWorld().logger.error(`token mismatch: ${token} !== ${this.token} `);
             return false;
         }
         return true;

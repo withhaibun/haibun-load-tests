@@ -10,8 +10,8 @@ Files crucial for load testing are served for the automated testing process.
 The test navigates to the authentication page and performs simulated login actions.
 
 The load testing settings are configured to trigger tests from the a local folder.
+#    pause for 50s
     Start load tests for 1 tests from "local-tests/client"
     Webserver is listening
-    start load test client
-#    pause for 50s
+#    start load test client
     Summarize load test results

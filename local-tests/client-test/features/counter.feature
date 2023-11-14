@@ -9,6 +9,6 @@ Feature: A form and counter
     When I input <username> for user name
     And I click the button Submit
 
-    Then I should be on the results webpage
+    Then I should see Success
     And the URI query parameter username is <username>
     

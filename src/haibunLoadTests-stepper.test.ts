@@ -4,7 +4,7 @@ import haibunLoadTests from './haibunLoadTests-stepper.js';
 
 describe('haibunLoadTests tests', () => {
   it('finds tests', async () => {
-    const tests = await haibunLoadTests.getTests('./local-tests/client', '');
+    const tests = await haibunLoadTests.getTest('./local-tests/client', '');
     expect(tests).toBeDefined();
   });
 });
