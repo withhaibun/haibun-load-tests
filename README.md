@@ -3,7 +3,7 @@ run load tests using Haibun tests with scalable client containers
 
 # Use with docker (containers
 
-Please see [presentation](haibun-load-tests-presentation-20231123.pdf)
+Please see [presentation](https://docs.google.com/presentation/d/1EE8VvFDLil6hy7EZeBH2hm18OWBdVEhFlwnc7_yMZUQ/edit?usp=sharing)
 
 Create an env-client:
 ```

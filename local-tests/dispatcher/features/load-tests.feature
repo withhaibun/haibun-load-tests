@@ -1,14 +1,10 @@
 
 Feature: Simulated load test
 
-Background features are loaded for the test environment. 
-
-Files crucial for load testing are served for the automated testing process.
+Routes used for load testing. 
 
     serve files at /counter from "counter"
 
-The test navigates to the authentication page and performs simulated login actions.
-
-The load testing settings are configured to trigger tests from the a local folder.
+The following will dispatch tests from a local folder.
 
     Dispatch load tests from "local-tests/client-test"
