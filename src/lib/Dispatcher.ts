@@ -1,10 +1,10 @@
-import { TWorld } from "@haibun/core/build/lib/defs.js";
 import { getFromRuntime, actionNotOK, asError, sleep, actionOK } from "@haibun/core/build/lib/util/index.js";
 import { getConfigFromBase } from "@haibun/core/build/lib/util/workspace-lib.js";
 import { getFeaturesAndBackgrounds } from "@haibun/core/build/phases/collector.js";
 import { IWebServer, WEBSERVER, IResponse, IRequest, TRequestHandler } from "@haibun/web-server-express/build/defs.js";
 import { TDispatchConfig, TDispatchedResult, TDispatchedTestRunning, TRunMap, TRunningResult, TTestContext, randomID } from "./common.js";
-import { TArtifactMessageContext, TBasicMessageContext } from "@haibun/core/build/lib/interfaces/logger.js";
+import { TArtifactMessageContext } from "@haibun/core/build/lib/interfaces/logger.js";
+import { TWorld } from "@haibun/core/build/lib/defs.js";
 
 export class Dispatcher {
     startTime = new Date();
@@ -17,8 +17,15 @@ export class Dispatcher {
     testContext: TTestContext;
     runningResults: { [name: string]: TRunningResult } = {};
     cycles = 0;
-    redispatch = 0;
+    requestsByClientID: { [clientID: string]: { dispatched: number, pending: number, locked: number, completed: number, redispatch: 0, stale: 0, mismatch: 0 } } = {};
+    static lock = false;
 
+    updateClientCount(clientID: string, field: string) {
+        if (!this.requestsByClientID[clientID]) {
+            this.requestsByClientID[clientID] = { dispatched: 0, pending: 0, locked: 0, completed: 0, redispatch: 0, stale: 0, mismatch: 0 };
+        }
+        this.requestsByClientID[clientID][field]++;
+    }
     constructor(world: TWorld, dispatchConfig: TDispatchConfig) {
         this.world = world;
         this.dispatchConfig = dispatchConfig;
@@ -29,8 +36,18 @@ export class Dispatcher {
         this.testContext = Dispatcher.getTest(where, filter);
 
         try {
-            webserver.addRoute('get', this.dispatchConfig.dispatchRoute, this.dispatch);
-            webserver.addRoute('post', this.dispatchConfig.resultsRoute, this.results);
+            const lockRoute: TRequestHandler = async (req, res, next) => {
+                while (Dispatcher.lock) {
+                    await sleep(100);
+                    const clientID = <string>req.query.clientID;
+                    this.updateClientCount(clientID, 'locked');
+                }
+                Dispatcher.lock = true;
+                next();
+            };
+
+            webserver.addRoute('get', this.dispatchConfig.dispatchRoute, lockRoute, this.dispatchTest);
+            webserver.addRoute('post', this.dispatchConfig.resultsRoute, this.receiveResults);
         } catch (error) {
             return actionNotOK('runLoadTests', { error: asError(error) });
         }
@@ -43,10 +60,14 @@ export class Dispatcher {
                 await sleep(200);
                 this.removeStaleTests();
             }
-            const summarized = this.summarizeCompletedResults();
+            const dispatchTotal = Object.values(this.requestsByClientID).reduce((acc, value) => acc + value.dispatched, 0);
+            const completeTotal = Object.values(this.requestsByClientID).reduce((acc, value) => acc + value.dispatched, 0);
+            const summarized = { ...this.summarizeCompletedResults(), dispatchTotal, completeTotal };
             const summary = JSON.stringify(summarized);
-            const html = `<table border="1"><tr>${Object.keys(summarized).map(key => `<th>${key}</th>`).join('')}</tr><tr>${Object.values(summarized).map(value => `<td>${value}</td>`).join('')}</tr></table>`;
-            this.world.logger.info('finis', <TArtifactMessageContext>{ topic: { event: 'request', stage: 'endFeature' }, artifact: { type: 'html', content: html, }, tag: this.world.tag });
+            const mainReport = `<table border="1"><tr>${Object.keys(summarized).map(key => `<th>${key}</th>`).join('')}</tr><tr>${Object.values(summarized).map(value => `<td>${value}</td>`).join('')}</tr></table>`;
+
+            this.world.logger.info('results', <TArtifactMessageContext>{ topic: { event: 'request', stage: 'endFeature' }, artifact: { type: 'html', content: mainReport, }, tag: this.world.tag });
+            this.world.logger.info('client report', <TArtifactMessageContext>{ topic: { event: 'request', stage: 'endFeature' }, artifact: { type: 'html', content: this.clientReport(), }, tag: this.world.tag });
             const topics = { metrics: { summary, report: { html: summarized.toString() } } };
 
             return actionOK(topics);
@@ -54,10 +75,12 @@ export class Dispatcher {
             return actionNotOK('runLoadTests', { error: asError(error) });
         }
     }
+    clientReport = () => `<table border="1">${Object.entries(this.requestsByClientID).map(([key, value]) => `<tr><td>${key}</td><td>${JSON.stringify(value)}</td></tr>`).join('')}</table>`;
     removeStaleTests() {
         const now = new Date().getTime();
         Object.entries(this.testMap).map(([sequence, running]) => {
             if (now - running.startTime > this.dispatchConfig.maxClientTime * 1000) {
+                this.updateClientCount(running.clientID, 'stale');
                 delete this.testMap[sequence];
                 this.world.logger.info(`removed stale test ${sequence}`);
             }
@@ -71,7 +94,14 @@ export class Dispatcher {
         }), { passed: 0, clientRunTime: 0 });
         const numCompleted = this.completed();
         const average = totalRunTime / numCompleted;
-        const summarized = { numCompleted, totalRunTime, average, passed, failed: numCompleted - passed, redispatch: this.redispatch };
+        const summarized = {
+            numCompleted,
+            totalRunTime,
+            average,
+            passed,
+            failed: numCompleted - passed,
+            clients: Object.keys(this.requestsByClientID).length
+        };
         this.world.logger.info(`finished load tests ${summarized}`);
         return summarized;
     }
@@ -114,17 +144,19 @@ export class Dispatcher {
         return true;
     }
     // receive results from clients and add to running results. if all results are received, tell client to end.
-    results: TRequestHandler = async (req: IRequest, res: IResponse) => {
+    receiveResults: TRequestHandler = async (req: IRequest, res: IResponse) => {
         const { ok, token, sequence, testID, historyWithMeta }: TDispatchedResult = req.body;
         if (!this.checkToken(token, res)) {
             return;
         }
+        const { startTime, clientID } = this.testMap[sequence];
         if (!testID || this.testMap[sequence]?.testID !== testID) {
             this.world.logger.error(`testID ${testID} vs ${this.testMap[sequence]?.testID} doesn't match sequence ${sequence}`);
+            this.updateClientCount(clientID, 'missmatch');
             res.status(500).end(JSON.stringify({ continue: this.shouldContinue() }));
             return;
         }
-        const { startTime } = this.testMap[sequence];
+        this.updateClientCount(clientID, 'completed');
         const featureTime = (new Date().getTime() - startTime) / 1000;
         delete this.testMap[sequence];
         this.runningResults[sequence] = { ok, startTime, featureTime, testID, historyWithMeta };
@@ -132,7 +164,14 @@ export class Dispatcher {
         res.status(200).end(JSON.stringify({ continue: this.shouldContinue() }));
     }
     // receive client requests for more work. if all tests are run, tell client to terminate.
-    dispatch: TRequestHandler = async (req: IRequest, res: IResponse) => {
+    dispatchTest: TRequestHandler = async (req: IRequest, res: IResponse) => {
+        try {
+            this.doDispatchTest(req, res);
+        } finally {
+            Dispatcher.lock = false;
+        }
+    }
+    doDispatchTest(req: IRequest, res: IResponse) {
         const token = <string>req.query.token;
         if (!this.checkToken(token, res)) {
             return;
@@ -142,19 +181,21 @@ export class Dispatcher {
             if (running.clientID === clientID) {
                 delete this.testMap[sequence];
                 this.world.logger.log(`client ${clientID} redispatch, removed test ${sequence}`);
-                this.redispatch++;
+                this.updateClientCount(clientID, 'redispatch');
             }
         });
-        const testID = randomID();
 
         if (this.shouldContinue()) {
-            // all tests dispatched, waiting for results
-            if (this.dispatchedTests >= this.totalTests) {
+            const considering = this.completed() + this.running();
+            if (considering >= this.totalTests) {
+                this.updateClientCount(clientID, 'pending');
                 res.end(JSON.stringify({ state: 'pending' }));
                 return;
             }
 
             // dispatch a test
+            this.updateClientCount(clientID, 'dispatched');
+            const testID = randomID();
             const sequence = this.dispatchedTests;
             this.testMap[sequence] = { testID, startTime: new Date().getTime(), clientID };
             this.dispatchedTests++;
@@ -171,4 +212,5 @@ export class Dispatcher {
         res.end(JSON.stringify({ state: 'end' }));
     }
     completed = () => Object.keys(this.runningResults).length;
+    running = () => Object.keys(this.testMap).length;
 };

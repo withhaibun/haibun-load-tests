@@ -11,4 +11,4 @@ The test navigates to the authentication page and performs simulated login actio
 
 The load testing settings are configured to trigger tests from the a local folder.
 
-    Start load tests from "local-tests/client-test"
+    Dispatch load tests from "local-tests/client-test"

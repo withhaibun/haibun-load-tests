@@ -12,15 +12,11 @@ const RESULTS_ROUTE = '/results';
 export const STORAGE = 'STORAGE';
 export const TRACKS_STORAGE = 'TRACKS_STORAGE';
 
-const defaultBase = 'http://localhost:8123';
-
-const defaultDispatchEndpoint = `${defaultBase}${DISPATCH_ROUTE}`;
-const defaultResultsEndpoint = `${defaultBase}${RESULTS_ROUTE}`;
-
 const NUM_TESTS = 'NUM_TESTS';
 const MAX_TOTAL_RUNTIME = 'MAX_TOTAL_RUNTIME';
 const MAX_CLIENT_RUNTIME = 'MAX_CLIENT_RUNTIME';
 const TOKEN = 'TOKEN';
+const DISPATCHER_ADDRESS = 'DISPATCHER_ADDRESS';
 
 const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper implements IHasOptions {
     dispatchConfig: TDispatchConfig
@@ -55,6 +51,11 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
             required: false,
             desc: 'Maximum total runtime for all tests, in seconds',
             parse: (input: string) => intOrError(input),
+        },
+        [DISPATCHER_ADDRESS]: {
+            required: false,
+            desc: 'Address of dispatcher',
+            parse: (input: string) => stringOrError(input),
         }
     }
     numTests: number;
@@ -64,15 +65,20 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
         const tracksStorage = findStepperFromOption<AStorage>(steppers, this, world.extraOptions, TRACKS_STORAGE, STORAGE);
         const token = getStepperOption(this, TOKEN, this.getWorld().extraOptions) || randomID();
         this.numTests = parseInt(getStepperOption(this, NUM_TESTS, this.getWorld().extraOptions) || '10', 10);
+        const dispatcherAddress = getStepperOption(this, DISPATCHER_ADDRESS, this.getWorld().extraOptions) || 'http://localhost:8123';
 
-        const maxClientTime = parseInt(getStepperOption(this, MAX_CLIENT_RUNTIME, this.getWorld().extraOptions)) || 60;
+        const maxClientTime = parseInt(getStepperOption(this, MAX_CLIENT_RUNTIME, this.getWorld().extraOptions)) || 30;
         this.dispatchConfig = {
             maxClientTime,
             token,
-            maxTotalRuntime: parseInt(getStepperOption(this, MAX_TOTAL_RUNTIME, this.getWorld().extraOptions)) || this.numTests * maxClientTime * 3,
+            maxTotalRuntime: parseInt(getStepperOption(this, MAX_TOTAL_RUNTIME, this.getWorld().extraOptions)) || this.numTests * maxClientTime / 3,
             dispatchRoute: DISPATCH_ROUTE,
             resultsRoute: RESULTS_ROUTE
         };
+
+        const defaultDispatchEndpoint = `${dispatcherAddress}${DISPATCH_ROUTE}`;
+        const defaultResultsEndpoint = `${dispatcherAddress}${RESULTS_ROUTE}`;
+
         this.clientConfig = {
             maxClientTime,
             token,
@@ -87,14 +93,14 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
 
     steps = {
         runLoadTestWithFilter: {
-            gwta: 'start load tests with filter {filter} from {where}',
+            gwta: 'dispatch load tests with filter {filter} from {where}',
             action: async ({ where, filter }: TNamed) => {
                 const dispatcher = new Dispatcher(this.getWorld(), this.dispatchConfig);
                 return await dispatcher.runLoadTests(where, this.numTests, filter)
             },
         },
         startLoadTest: {
-            gwta: 'start load tests from {where}',
+            gwta: 'dispatch load tests from {where}',
             action: async ({ where }: TNamed) => {
                 const dispatcher = new Dispatcher(this.getWorld(), this.dispatchConfig);
                 return await dispatcher.runLoadTests(where, this.numTests)

@@ -27,6 +27,7 @@ export class StepperClient {
             await sleep(200);
             try {
                 const task: TDispatchedTest = await this.getTask();
+                console.log('totaly running', task.state);
                 if (task.state === 'pending') {
                     continue;
                 } else if (task.state === 'end') {
@@ -40,14 +41,15 @@ export class StepperClient {
                 const historyWithMeta = asHistoryWithMeta(logHistory, startTime, `client sequence ${sequence} for test ${testID}`, 0, ok);
 
                 cont = await this.postResult({ historyWithMeta, ok, testID, sequence });
+                this.world.logger.log(`posted results for sequence ${sequence}, ok: ${ok}, continue: ${cont}`);
             } catch (e) {
+                console.error(e);
                 failures++;
                 this.world.logger.error(`failure: ${e}`);
                 if (failures >= this.clientConfig.maxFailures) {
                     cont = false;
                     this.world.logger.info(`shutdown due to ${failures} failures`);
                 };
-            } finally {
             }
         }
         return actionOK();
@@ -61,9 +63,6 @@ export class StepperClient {
             ...this.world.extraOptions,
             HAIBUN_O_OUTREVIEWS_TRACKS_STORAGE: 'StorageFS',
         }
-        // delete extraOptions.HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN;
-        // delete extraOptions.HAIBUN_O_OUTREVIEWS_STORAGE;
-        // delete extraOptions.HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TRACKS_STORAGE;
         extraOptions.HAIBUN_O_WEBPLAYWRIGHT_STORAGE = 'StorageFS';
 
         const world = getDefaultWorld(sequence).world;
@@ -76,8 +75,12 @@ export class StepperClient {
 
     async getTask() {
         const res = (await fetch(`${this.clientConfig.dispatchEndpoint}?token=${this.clientConfig.token}&clientID=${this.clientID}`));
-        const payload = await res.json();
-        return payload;
+        try {
+            const payload = await res.json();
+            return payload;
+        } catch (e) {
+            console.error('error getting task', e, await res.text());
+        }
     }
     async postResult(result: { historyWithMeta: THistoryWithMeta, ok: boolean, testID: string, sequence: number }) {
         const results: TDispatchedResult = {
