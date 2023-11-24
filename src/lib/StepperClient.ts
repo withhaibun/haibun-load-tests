@@ -27,7 +27,6 @@ export class StepperClient {
             await sleep(200);
             try {
                 const task: TDispatchedTest = await this.getTask();
-                console.log('totaly running', task.state);
                 if (task.state === 'pending') {
                     continue;
                 } else if (task.state === 'end') {
