@@ -35,17 +35,18 @@ export class Dispatcher {
         if (!webserver) return actionNotOK('webserver not found', { error: asError('webserver not found') });
         this.testContext = Dispatcher.getTest(where, filter);
 
+        const lockRoute: TRequestHandler = async (req, res, next) => {
+            while (Dispatcher.lock) {
+                await sleep(100);
+                const clientID = <string>req.query.clientID;
+                this.updateClientCount(clientID, 'locked');
+            }
+            Dispatcher.lock = true;
+            next();
+        };
         try {
-            const lockRoute: TRequestHandler = async (req, res, next) => {
-                while (Dispatcher.lock) {
-                    await sleep(100);
-                    const clientID = <string>req.query.clientID;
-                    this.updateClientCount(clientID, 'locked');
-                }
-                Dispatcher.lock = true;
-                next();
-            };
 
+            // NB the locking is probably bogus, some < 1% of extra results may be received in larger tests
             webserver.addRoute('get', this.dispatchConfig.dispatchRoute, lockRoute, this.dispatchTest);
             webserver.addRoute('post', this.dispatchConfig.resultsRoute, this.receiveResults);
         } catch (error) {
