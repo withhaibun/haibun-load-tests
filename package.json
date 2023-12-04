@@ -2,13 +2,13 @@
   "name": "haibun-load-tests",
   "type": "module",
   "devDependencies": {
-    "@haibun/cli": "1.32.7",
-    "@haibun/domain-storage": "1.32.7",
-    "@haibun/domain-webpage": "1.32.7",
-    "@haibun/out-review": "1.32.7",
-    "@haibun/storage-fs": "1.32.7",
-    "@haibun/web-playwright": "1.32.7",
-    "@haibun/web-server-express": "1.32.7",
+    "@haibun/cli": "1.32.9",
+    "@haibun/domain-storage": "1.32.9",
+    "@haibun/domain-webpage": "1.32.9",
+    "@haibun/out-review": "1.32.9",
+    "@haibun/storage-fs": "1.32.9",
+    "@haibun/web-playwright": "1.32.9",
+    "@haibun/web-server-express": "1.32.9",
     "@types/jest": "^29.5.2",
     "@types/node": "^20.3.1",
     "@typescript-eslint/eslint-plugin": "^5.48.0",
@@ -25,7 +25,7 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "@haibun/core": "1.32.7",
+    "@haibun/core": "1.32.9",
     "concurrently": "^8.2.2"
   },
   "scripts": {
@@ -49,5 +49,5 @@
     "build-watch": "tsc -w",
     "lint": "lint --ext .ts ./src/"
   },
-  "version": "1.32.7"
+  "version": "1.32.9"
 }
