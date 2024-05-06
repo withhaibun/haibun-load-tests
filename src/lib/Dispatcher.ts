@@ -103,7 +103,7 @@ export class Dispatcher {
             failed: numCompleted - passed,
             clients: Object.keys(this.requestsByClientID).length
         };
-        this.world.logger.info(`finished load tests ${summarized}`);
+        this.world.logger.info(`finished load tests ${JSON.stringify(summarized, null, 2)}`);
         return summarized;
     }
     static getTest(where, filter) {
@@ -132,7 +132,7 @@ export class Dispatcher {
         }
         let reason = completed >= this.totalTests ? 'completed tests ' : '';
 
-        this.world.logger.info(`Finished load tests because ${reason}`);
+        this.world.logger.info(`Finished load tests because ${JSON.stringify(reason, null, 2)}`);
 
         return false;
     }
