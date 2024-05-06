@@ -10,6 +10,7 @@
   },
   "exclude": [
     "./jest.config.ts",
-    "build"
+    "build",
+    "files"
   ]
 }
