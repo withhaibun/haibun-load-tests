@@ -2,13 +2,13 @@
   "name": "@haibun/load-tests",
   "type": "module",
   "devDependencies": {
-    "@haibun/cli": "1.38.7",
-    "@haibun/domain-storage": "1.38.7",
-    "@haibun/domain-webpage": "1.38.7",
-    "@haibun/out-review": "1.38.7",
-    "@haibun/storage-fs": "1.38.7",
-    "@haibun/web-playwright": "1.38.7",
-    "@haibun/web-server-express": "1.38.7",
+    "@haibun/cli": "1.39.0",
+    "@haibun/domain-storage": "1.39.0",
+    "@haibun/domain-webpage": "1.39.0",
+    "@haibun/out-review": "1.39.0",
+    "@haibun/storage-fs": "1.39.0",
+    "@haibun/web-playwright": "1.39.0",
+    "@haibun/web-server-express": "1.39.0",
     "@types/jest": "^29.5.2",
     "@types/node": "^20.3.1",
     "@typescript-eslint/eslint-plugin": "^5.48.0",
@@ -25,7 +25,7 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "@haibun/core": "1.38.7",
+    "@haibun/core": "1.39.0",
     "concurrently": "^8.2.2"
   },
   "scripts": {
@@ -33,21 +33,22 @@
     "local": "concurrently \"npm run local-dispatcher\" \"npm run local-client\"",
     "local-50": "concurrently \"npm run local-50-dispatcher\" \"npm run local-5-clients\"",
     "local-100": "concurrently \"npm run local-100-dispatcher\" \"npm run local-20-clients\"",
-    "local-client": "HAIBUN_O_WEBPLAYWRIGHT_STORAGE=StorageFS HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TRACKS_STORAGE=StorageFS HAIBUN_TRACE=true HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS haibun-cli local-tests/client",
+    "local-client": "HAIBUN_KEY=__client HAIBUN_O_WEBPLAYWRIGHT_STORAGE=StorageFS HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TRACKS_STORAGE=StorageFS HAIBUN_TRACE=true HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS haibun-cli local-tests/client",
     "local-5-clients": "HAIBUN_O_WEBPLAYWRIGHT_STORAGE=StorageFS concurrently \"npm run local-client\" \"npm run local-client\" \"npm run local-client\" \"npm run local-client\" \"npm run local-client\" \"npm run local-client\"",
     "local-20-clients": "HAIBUN_O_WEBPLAYWRIGHT_STORAGE=StorageFS concurrently \"npm run local-5-clients\" \"npm run local-5-clients\" \"npm run local-5-clients\" \"npm run local-5-clients\" \"npm run local-5-clients\"",
     "local-100-clients": "HAIBUN_O_WEBPLAYWRIGHT_STORAGE=StorageFS concurrently \"npm run local-20-clients\" \"npm run local-20-clients\" \"npm run local-20-clients\" \"npm run local-20-clients\" \"npm run local-20-clients\"",
-    "local-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=1 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__test HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
-    "local-10-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=10 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__test HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
-    "local-50-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=50 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__test HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
-    "local-100-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=100 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__test HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
-    "local-500-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=500 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__test HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
-    "local-5000-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=5000 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__test HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
+    "local-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=1 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__dispatch HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
+    "local-10-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=10 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__dispatch HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
+    "local-50-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=50 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__dispatch HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
+    "local-100-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=100 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__dispatch HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
+    "local-500-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=500 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__dispatch HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
+    "local-5000-dispatcher": "HAIBUN_O_HAIBUNLOADTESTSSTEPPER_NUM_TESTS=5000 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_TOKEN=local92 HAIBUN_O_HAIBUNLOADTESTSSTEPPER_STORAGE=StorageFS HAIBUN_KEY=__dispatch HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_TRACE=true haibun-cli local-tests/dispatcher",
     "test-watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
-    "publish": "HAIBUN_KEY=__publish HAIBUN_O_OUTREVIEWS_PUBLISH_ROOT=./files/published HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_O_OUTREVIEWS_PUBLISH_STORAGE=StorageFS haibun-cli --config publish/local publish",
+    "publish-client": "HAIBUN_KEY=__client HAIBUN_KEY=__publish HAIBUN_O_OUTREVIEWS_PUBLISH_ROOT=./files/published HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_O_OUTREVIEWS_PUBLISH_STORAGE=StorageFS haibun-cli --config publish/local publish",
+    "publish-dispatch": "HAIBUN_KEY=__dispatch HAIBUN_KEY=__publish HAIBUN_O_OUTREVIEWS_PUBLISH_ROOT=./files/published HAIBUN_O_OUTREVIEWS_STORAGE=StorageFS HAIBUN_O_OUTREVIEWS_PUBLISH_STORAGE=StorageFS haibun-cli --config publish/local publish",
     "build": "tsc",
     "build-watch": "tsc -w",
     "lint": "lint --ext .ts ./src/"
   },
-  "version": "1.38.7"
+  "version": "1.39.0"
 }
