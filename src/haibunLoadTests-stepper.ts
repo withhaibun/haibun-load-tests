@@ -64,7 +64,7 @@ const HaibunLoadTestsStepper = class HaibunLoadTestsStepper extends AStepper imp
         await super.setWorld(world, steppers);
         const tracksStorage = findStepperFromOption<AStorage>(steppers, this, world.extraOptions, TRACKS_STORAGE, STORAGE);
         const token = getStepperOption(this, TOKEN, this.getWorld().extraOptions) || randomID();
-        this.numTests = parseInt(getStepperOption(this, NUM_TESTS, this.getWorld().extraOptions) || '10', 10);
+        this.numTests = parseInt(getStepperOption(this, NUM_TESTS, this.getWorld().extraOptions) || '1', 10);
         const dispatcherAddress = getStepperOption(this, DISPATCHER_ADDRESS, this.getWorld().extraOptions) || 'http://localhost:8123';
 
         const maxClientTime = parseInt(getStepperOption(this, MAX_CLIENT_RUNTIME, this.getWorld().extraOptions)) || 30;
