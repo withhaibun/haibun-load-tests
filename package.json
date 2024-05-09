@@ -1,14 +1,14 @@
 {
   "name": "@haibun/load-tests",
-  "version": "1.40.3",
+  "version": "1.40.5",
   "type": "module",
   "devDependencies": {
-    "@haibun/cli": "1.40.3",
-    "@haibun/domain-webpage": "1.40.3",
-    "@haibun/out-review": "1.40.3",
-    "@haibun/storage-fs": "1.40.3",
-    "@haibun/web-playwright": "1.40.3",
-    "@haibun/web-server-express": "1.40.3",
+    "@haibun/cli": "1.40.5",
+    "@haibun/domain-webpage": "1.40.5",
+    "@haibun/out-review": "1.40.5",
+    "@haibun/storage-fs": "1.40.5",
+    "@haibun/web-playwright": "1.40.5",
+    "@haibun/web-server-express": "1.40.5",
     "@types/jest": "^29.5.2",
     "@types/node": "^20.3.1",
     "@typescript-eslint/eslint-plugin": "^5.48.0",
@@ -26,8 +26,8 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "@haibun/core": "1.40.3",
-    "@haibun/domain-storage": "1.40.3"
+    "@haibun/core": "1.40.5",
+    "@haibun/domain-storage": "1.40.5"
   },
   "scripts": {
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
